@@ -516,6 +516,7 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
         if(endsWith(extension, "-flac")) m_expectedCodec  = CODEC_FLAC;
         if(endsWith(extension, ".opus")) m_expectedCodec  = CODEC_OPUS;
         if(endsWith(extension, "/opus")) m_expectedCodec  = CODEC_OPUS;
+        if(endsWith(extension, ".raw"))  m_expectedCodec  = CODEC_RAW;
         if(endsWith(extension, ".asx" )) m_expectedPlsFmt = FORMAT_ASX;
         if(endsWith(extension, ".m3u" )) m_expectedPlsFmt = FORMAT_M3U;
         if(endsWith(extension, ".pls" )) m_expectedPlsFmt = FORMAT_PLS;
@@ -640,6 +641,7 @@ bool Audio::httpPrint(const char* host) {
     if(endsWith(extension, ".wav"))       m_expectedCodec  = CODEC_WAV;
     if(endsWith(extension, ".m4a"))       m_expectedCodec  = CODEC_M4A;
     if(endsWith(extension, ".flac"))      m_expectedCodec  = CODEC_FLAC;
+    if(endsWith(extension, ".raw"))       m_expectedCodec  = CODEC_RAW;
     if(endsWith(extension, ".asx"))       m_expectedPlsFmt = FORMAT_ASX;
     if(endsWith(extension, ".m3u"))       m_expectedPlsFmt = FORMAT_M3U;
     if(indexOf( extension, ".m3u8") >= 0) m_expectedPlsFmt = FORMAT_M3U8;
@@ -761,6 +763,7 @@ bool Audio::connecttoFS(fs::FS& fs, const char* path, int32_t resumeFilePos) {
     if(endsWith(afn, ".opus")) m_codec = CODEC_OPUS;
     if(endsWith(afn, ".ogg")) m_codec = CODEC_OGG;
     if(endsWith(afn, ".oga")) m_codec = CODEC_OGG;
+    if(endsWith(afn, ".raw")) m_codec = CODEC_RAW;
 
     if(m_codec == CODEC_NONE) AUDIO_INFO("The %s format is not supported", afn + dotPos);
 
@@ -1147,6 +1150,15 @@ size_t Audio::readAudioHeader(uint32_t bytes) {
     if(m_codec == CODEC_OPUS) { m_controlCounter = 100; }
     if(m_codec == CODEC_VORBIS) { m_controlCounter = 100; }
     if(m_codec == CODEC_OGG) { m_controlCounter = 100; }
+    if(m_codec == CODEC_RAW) {
+        // Hardcode those values, at least for now
+        setBitsPerSample(16);
+        setChannels(1);
+        setSampleRate(16000);
+        setBitrate(getChannels() * getSampleRate() * getBitsPerSample());
+        // stream only, no header
+        m_controlCounter = 100;
+    }
     if(!isRunning()) {
         log_e("Processing stopped due to invalid audio header");
         return 0;
@@ -2915,6 +2927,9 @@ void Audio::processLocalFile() {
             FLACDecoderReset();
         }
         if(m_codec == CODEC_MP3) { m_resumeFilePos = mp3_correctResumeFilePos(m_resumeFilePos); }
+        if(m_codec == CODEC_RAW) {
+            while((m_resumeFilePos % 4) != 0) m_resumeFilePos++;
+        }  // similar to WAV? NOT TESTED
         if(m_avr_bitrate) m_audioCurrentTime = ((double)(m_resumeFilePos - m_audioDataStart) / m_avr_bitrate) * 8;
         audiofile.seek(m_resumeFilePos);
         InBuff.resetBuffer();
@@ -3800,6 +3815,7 @@ bool Audio::initializeDecoder() {
         case CODEC_WAV: InBuff.changeMaxBlockSize(m_frameSizeWav); break;
         case CODEC_OGG: // the decoder will be determined later (vorbis, flac, opus?)
             break;
+        case CODEC_RAW: InBuff.changeMaxBlockSize(m_frameSizeRaw); break;
         default: goto exit; break;
     }
     return true;
@@ -3903,7 +3919,10 @@ bool Audio::parseContentType(char* ct) {
                 m_codec = CODEC_MP3;
                 if(m_f_Log) log_i("set ct from M3U8 to MP3");
             }
-
+            if(m_expectedCodec == CODEC_RAW) {
+                m_codec = CODEC_RAW;
+                if(m_f_Log) log_i("set ct from octet-stream to RAW");
+            }
             if(m_expectedPlsFmt == FORMAT_ASX) {
                 m_playlistFormat = FORMAT_ASX;
                 if(m_f_Log) log_i("set playlist format to ASX");
@@ -4134,6 +4153,10 @@ int Audio::findNextSync(uint8_t* data, size_t len) {
         nextSync = VORBISFindSyncWord(data, len);
         if(nextSync == -1) return len; // OggS not found, search next block
     }
+    if(m_codec == CODEC_RAW) {
+        m_f_playing = true;
+        nextSync = 0;
+    }
     if(nextSync == -1) {
         if(audio_info && swnf == 0) audio_info("syncword not found");
         else {
@@ -4214,6 +4237,7 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
 
     switch(m_codec) {
         case CODEC_WAV:
+        case CODEC_RAW:
             memmove(m_outBuff, data, len); // copy len data in outbuff and set validsamples and bytesdecoded=len
             if(getBitsPerSample() == 16) m_validSamples = len / (2 * getChannels());
             if(getBitsPerSample() == 8) m_validSamples = len / 2;
@@ -4524,6 +4548,7 @@ uint32_t Audio::getAudioFileDuration() {
     else if(m_avr_bitrate && m_codec == CODEC_M4A) m_audioFileDuration = 8 * (m_audioDataSize / m_avr_bitrate);
     else if(m_avr_bitrate && m_codec == CODEC_AAC) m_audioFileDuration = 8 * (m_audioDataSize / m_avr_bitrate);
     else if(m_codec == CODEC_FLAC) m_audioFileDuration = FLACGetAudioFileDuration();
+    else if(m_avr_bitrate && m_codec == CODEC_RAW) m_audioFileDuration = 8 * (m_audioDataSize / m_avr_bitrate);
     else return 0;
     return m_audioFileDuration;
 }
@@ -4568,7 +4593,7 @@ bool Audio::setTimeOffset(int sec) {
     uint32_t startAB = m_audioDataStart;                 // audioblock begin
     uint32_t endAB = m_audioDataStart + m_audioDataSize; // audioblock end
 
-    if(m_codec == CODEC_MP3 || m_codec == CODEC_AAC || m_codec == CODEC_WAV || m_codec == CODEC_FLAC) {
+    if(m_codec == CODEC_MP3 || m_codec == CODEC_AAC || m_codec == CODEC_WAV || m_codec == CODEC_FLAC || m_codec == CODEC_RAW) {
         int32_t pos = getFilePos() - inBufferFilled();
         pos += offset;
         if(pos < (int32_t)startAB) pos = startAB;
