@@ -11,7 +11,6 @@
 #pragma once
 #pragma GCC optimize ("Ofast")
 #include <vector>
-#include <Arduino.h>
 #include <libb64/cencode.h>
 #include <esp32-hal-log.h>
 #include <WiFi.h>

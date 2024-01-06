@@ -16,8 +16,6 @@
 #pragma once
 #pragma GCC optimize ("Ofast")
 
-#include "Arduino.h"
-
 #define MAX_CHANNELS 2
 #define MAX_BLOCKSIZE 8192
 

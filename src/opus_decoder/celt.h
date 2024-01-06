@@ -35,8 +35,6 @@
 #pragma once
 #pragma GCC optimize ("Os")
 
-#include "Arduino.h"
-
 #define OPUS_RESET_STATE             4028
 #define OPUS_GET_SAMPLE_RATE_REQUEST 4029
 

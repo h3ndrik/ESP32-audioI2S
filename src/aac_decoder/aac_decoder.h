@@ -3,8 +3,6 @@
 //#pragma GCC optimize ("O3")
 //#pragma GCC diagnostic ignored "-Wnarrowing"
 
-#include "Arduino.h"
-
 #define AAC_ENABLE_MPEG4
 
 #if (defined CONFIG_IDF_TARGET_ESP32S3 && defined BOARD_HAS_PSRAM)

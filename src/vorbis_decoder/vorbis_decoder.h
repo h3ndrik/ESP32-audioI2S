@@ -26,8 +26,6 @@
 
 
 
-#include "Arduino.h"
-
 #define VI_FLOORB       2
 #define VIF_POSIT      63
 
