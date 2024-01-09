@@ -16,7 +16,9 @@
 #include <esp32-hal-log.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#ifndef AUDIO_NO_SD_FS
 #include <FS.h>
+#endif // AUDIO_NO_SD_FS
 #include <atomic>
 
 #if ESP_IDF_VERSION_MAJOR == 5
@@ -32,8 +34,10 @@ using namespace std;
 
 extern __attribute__((weak)) void audio_info(const char*);
 extern __attribute__((weak)) void audio_id3data(const char*); //ID3 metadata
+#ifndef AUDIO_NO_SD_FS
 extern __attribute__((weak)) void audio_id3image(File& file, const size_t pos, const size_t size); //ID3 metadata image
 extern __attribute__((weak)) void audio_id3lyrics(File& file, const size_t pos, const size_t size); //ID3 metadata lyrics
+#endif // AUDIO_NO_SD_FS
 extern __attribute__((weak)) void audio_eof_mp3(const char*); //end of mp3 file
 extern __attribute__((weak)) void audio_showstreamtitle(const char*);
 extern __attribute__((weak)) void audio_showstation(const char*);
@@ -129,7 +133,9 @@ public:
     void setBufsize(int rambuf_sz, int psrambuf_sz);
     bool connecttohost(const char* host, const char* user = "", const char* pwd = "");
     bool connecttospeech(const char* speech, const char* lang);
+#ifndef AUDIO_NO_SD_FS
     bool connecttoFS(fs::FS &fs, const char* path, int32_t resumeFilePos = -1);
+#endif // AUDIO_NO_SD_FS
     bool setFileLoop(bool input);//TEST loop
     void setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl);
     bool setAudioPlayPosition(uint16_t sec);
@@ -183,7 +189,9 @@ private:
     void setDefaults(); // free buffers and set defaults
     void initInBuff();
     bool httpPrint(const char* host);
+#ifndef AUDIO_NO_SD_FS
     void processLocalFile();
+#endif // AUDIO_NO_SD_FS
     void processWebStream();
     void processWebFile();
     void processWebStreamTS();
@@ -240,11 +248,13 @@ private:
     size_t   chunkedDataTransfer(uint8_t* bytes);
     bool     readID3V1Tag();
     boolean  streamDetection(uint32_t bytesAvail);
+#ifndef AUDIO_NO_SD_FS
     void     seek_m4a_stsz();
     void     seek_m4a_ilst();
     uint32_t m4a_correctResumeFilePos(uint32_t resumeFilePos);
     uint32_t flac_correctResumeFilePos(uint32_t resumeFilePos);
     uint32_t mp3_correctResumeFilePos(uint32_t resumeFilePos);
+#endif // AUDIO_NO_SD_FS
     uint8_t  determineOggCodec(uint8_t* data, uint16_t len);
 
 
@@ -445,7 +455,9 @@ private:
         int pids[4];
     } pid_array;
 
+#ifndef AUDIO_NO_SD_FS
     File                  audiofile;    // @suppress("Abstract class cannot be instantiated")
+#endif // AUDIO_NO_SD_FS
     WiFiClient            client;       // @suppress("Abstract class cannot be instantiated")
     WiFiClientSecure      clientsecure; // @suppress("Abstract class cannot be instantiated")
     WiFiClient*           _client = nullptr;

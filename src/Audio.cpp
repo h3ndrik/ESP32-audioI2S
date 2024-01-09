@@ -706,6 +706,7 @@ void Audio::UTF8toASCII(char* str) {
     str[j] = 0;
 }
 // clang-format on
+#ifndef AUDIO_NO_SD_FS
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 bool Audio::connecttoFS(fs::FS& fs, const char* path, int32_t resumeFilePos) {
     xSemaphoreTakeRecursive(mutex_audio, portMAX_DELAY); // #3
@@ -775,6 +776,7 @@ bool Audio::connecttoFS(fs::FS& fs, const char* path, int32_t resumeFilePos) {
     xSemaphoreGiveRecursive(mutex_audio);
     return ret;
 }
+#endif // AUDIO_NO_SD_FS
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 bool Audio::connecttospeech(const char* speech, const char* lang) {
     xSemaphoreTakeRecursive(mutex_audio, portMAX_DELAY);
@@ -2088,6 +2090,7 @@ uint32_t Audio::stopSong() {
     uint32_t pos = 0;
     if(m_f_running) {
         m_f_running = false;
+#ifndef AUDIO_NO_SD_FS
         if(getDatamode() == AUDIO_LOCALFILE) {
             m_streamType = ST_NONE;
             pos = getFilePos() - inBufferFilled();
@@ -2100,6 +2103,7 @@ uint32_t Audio::stopSong() {
         audiofile.close();
         AUDIO_INFO("Closing audio file");
         log_w("Closing audio file"); // for debug
+#endif // AUDIO_NO_SD_FS
     }
     memset(m_outBuff, 0, 2048 * 2 * sizeof(uint16_t)); // Clear OutputBuffer
     m_validSamples = 0;
@@ -2821,6 +2825,7 @@ bool Audio::STfromEXTINF(char* str) {
     }
     return true;
 }
+#ifndef AUDIO_NO_SD_FS
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Audio::processLocalFile() {
     if(!(audiofile && m_f_running && getDatamode() == AUDIO_LOCALFILE)) return; // guard
@@ -2989,6 +2994,7 @@ void Audio::processLocalFile() {
     // play audio data - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(f_stream) { playAudioData(); }
 }
+#endif // AUDIO_NO_SD_FS
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Audio::processWebStream() {
     const uint16_t  maxFrameSize = InBuff.getMaxBlockSize(); // every mp3/aac frame is not bigger
@@ -4497,24 +4503,38 @@ bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t MCLK) {
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 uint32_t Audio::getFileSize() {
+#ifdef AUDIO_NO_SD_FS
+    return 0;
+#else
     if(!audiofile) return 0;
     return audiofile.size();
+#endif // AUDIO_NO_SD_FS
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 uint32_t Audio::getFilePos() {
+#ifdef AUDIO_NO_SD_FS
+    return 0;
+#else
     if(!audiofile) return 0;
     return audiofile.position();
+#endif // AUDIO_NO_SD_FS
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 uint32_t Audio::getAudioDataStartPos() {
+#ifdef AUDIO_NO_SD_FS
+    return 0;
+#else
     if(!audiofile) return 0;
     return m_audioDataStart;
+#endif // AUDIO_NO_SD_FS
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 uint32_t Audio::getAudioFileDuration() {
+#ifndef AUDIO_NO_SD_FS
     if(getDatamode() == AUDIO_LOCALFILE) {
         if(!audiofile) return 0;
     }
+#endif // AUDIO_NO_SD_FS
     if(m_streamType == ST_WEBFILE) {
         if(!m_contentlength) return 0;
     }
@@ -4580,6 +4600,9 @@ bool Audio::setTimeOffset(int sec) {
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 bool Audio::setFilePos(uint32_t pos) {
+#ifdef AUDIO_NO_SD_FS
+    return false;
+#else
     if(m_codec == CODEC_OPUS) return false;   // not impl. yet
     if(m_codec == CODEC_VORBIS) return false; // not impl. yet
     if(!audiofile) return false;
@@ -4589,6 +4612,7 @@ bool Audio::setFilePos(uint32_t pos) {
     memset(m_outBuff, 0, 2048 * 2 * sizeof(int16_t));
     m_validSamples = 0;
     return true;
+#endif // AUDIO_NO_SD_FS
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 bool Audio::audioFileSeek(const float speed) {
@@ -5558,6 +5582,7 @@ boolean Audio::streamDetection(uint32_t bytesAvail) {
     }
     return false;
 }
+#ifndef AUDIO_NO_SD_FS
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Audio::seek_m4a_ilst() {
     // ilist - item list atom, contains the metadata
@@ -5847,6 +5872,7 @@ uint32_t Audio::mp3_correctResumeFilePos(uint32_t resumeFilePos) {
     if(found) return (pos - 2);
     return m_audioDataStart;
 }
+#endif // AUDIO_NO_SD_FS
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 uint8_t Audio::determineOggCodec(uint8_t* data, uint16_t len) {
     // if we have contentType == application/ogg; codec cn be OPUS, FLAC or VORBIS
